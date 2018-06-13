@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package baas;
+
+service BaaS {
+  rpc bcrypt (BcryptRequest) returns (BcryptReply) {}
+}
+
+message BcryptRequest {
+  required string id = 1;
+  required string password = 2;
+  enum Operation {
+    COMPARE = 0;
+    HASH = 1;
+  }
+  required Operation operation = 3;
+  optional string hash = 4;
+}
+
+message BcryptReply {
+  required string request_id = 1;
+  optional bool success = 2;
+  optional string hash = 3;
+}

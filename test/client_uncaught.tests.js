@@ -1,5 +1,5 @@
 const BaaSServer = require('..').Server;
-const BaaSPool = require('../pool');
+const BaaSPool = require('../client');
 const freeport = require('freeport');
 const assert = require('chai').assert;
 const _ = require('lodash');

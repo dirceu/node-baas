@@ -1,4 +1,0 @@
-package baas;
-
-import public "messages/Request.proto";
-import public "messages/Response.proto";

@@ -1,25 +1,14 @@
-const EventEmitter     = require('events').EventEmitter;
-const util             = require('util');
-const randomstring     = require('randomstring');
-const RequestMessage   = require('./messages').Request;
-const ResponseDecoder  = require('./messages/decoders').ResponseDecoder;
-const url              = require('url');
+const EventEmitter = require('events').EventEmitter;
+const url          = require('url');
+const util         = require('util');
 
-const reconnect        = require('reconnect-net');
-const reconnectTls     = require('reconnect-tls');
-const disyuntor        = require('disyuntor');
+const disyuntor    = require('disyuntor');
+const grpc         = require('grpc');
+const ms           = require('ms');
 
-const ms = require('ms');
-const _  = require('lodash');
-
-const DEFAULT_PROTOCOL = 'baas';
+const baasProto     = grpc.load('./baas.proto').baas;
 const DEFAULT_PORT  = 9485;
 const DEFAULT_HOST  = 'localhost';
-
-const lib_map = {
-  'baas': reconnect,
-  'baass': reconnectTls
-};
 
 function parseURI (uri) {
   const parsed = url.parse(uri);
@@ -39,15 +28,8 @@ function BaaSClient (options, done) {
   } else if (options.uri || options.url) {
     options = _.extend(options, parseURI(options.uri || options.url));
   } else {
-    options.protocol = options.protocol || DEFAULT_PROTOCOL;
     options.port = options.port || DEFAULT_PORT;
     options.host = options.host || DEFAULT_HOST;
-  }
-
-  this._socketLib = lib_map[options.protocol];
-
-  if (!this._socketLib) {
-    throw new Error('unknown protocol ' + options.protocol);
   }
 
   this._options = options;
@@ -59,46 +41,11 @@ function BaaSClient (options, done) {
 
   this._pendingRequests = 0;
 
-  this._sendRequestSafe = disyuntor(this._sendRequest.bind(this), _.extend({
-    name: 'baas.client',
-    timeout: options.requestTimeout,
-    onTrip: (err, failures, currentCooldown) => {
-      this.emit('breaker_error', err);
-    }
-  }, options.breaker || {} ));
-
-  this.connect(done);
+  this._client = new baasProto.BaaS(`${this._options.host}:${this._options.port}`,
+                                      grpc.credentials.createInsecure());
+  if(done) done();
 }
-
 util.inherits(BaaSClient, EventEmitter);
-
-BaaSClient.prototype.connect = function (done) {
-  const options = this._options;
-  const client = this;
-
-  this.socket = this._socketLib(function (stream) {
-
-    stream.pipe(ResponseDecoder()).on('data', function (response) {
-      client.emit('response', response);
-      client.emit('response_' + response.request_id, response);
-    });
-    client.stream = stream;
-    client.emit('ready');
-  }).once('connect', function () {
-    client.emit('connect');
-  }).on('close', function (has_error) {
-    client.emit('close', has_error);
-  }).on('error', function (err) {
-    if (err === 'DEPTH_ZERO_SELF_SIGNED_CERT' && options.rejectUnauthorized === false) {
-      return;
-    }
-    client.emit('error', err);
-  }).connect(options.port, options.address || options.hostname || options.host, {
-    rejectUnauthorized: options.rejectUnauthorized
-  });
-
-  client.once('ready', done || _.noop);
-};
 
 BaaSClient.prototype.hash = function (password, salt, callback) {
   //Salt is keep for api-level compatibility with node-bcrypt
@@ -113,10 +60,10 @@ BaaSClient.prototype.hash = function (password, salt, callback) {
 
   const request = {
     'password':  password,
-    'operation': RequestMessage.Operation.HASH,
+    'operation': 1 // HASH
   };
 
-  this._sendRequestSafe(request, (err, response) => {
+  this._client.bcrypt(request, (err, response) => {
     callback(err, response && response.hash);
   });
 };
@@ -133,53 +80,12 @@ BaaSClient.prototype.compare = function (password, hash, callback) {
   var request = {
     'password':  password,
     'hash':      hash,
-    'operation': RequestMessage.Operation.COMPARE,
+    'operation': 0 // COMPARE
   };
 
-  this._sendRequestSafe(request, (err, response) => {
+  this._client.bcrypt(request, (err, response) => {
     callback(err, response && response.success);
   });
-};
-
-BaaSClient.prototype._sendRequest = function (params, callback) {
-  if (!callback) {
-    return setImmediate(callback, new Error('callback is required'));
-  }
-
-  if (!this.stream || !this.stream.writable) {
-    return setImmediate(callback, new Error('The socket is closed.'));
-  }
-
-  var request;
-  try {
-    request = new RequestMessage(_.extend({
-      'id': randomstring.generate(7)
-    }, params))
-  } catch (err) {
-    return callback(err);
-  };
-
-  this._requestCount++;
-  this._pendingRequests++;
-
-  this.stream.write(request.encodeDelimited().toBuffer());
-
-  this.once('response_' + request.id, response => {
-    this._pendingRequests--;
-    if (this._pendingRequests === 0) {
-      this.emit('drain');
-    }
-
-    if (response.busy) {
-      return callback(new Error('baas server is busy'));
-    }
-
-    callback(null, response);
-  });
-};
-
-BaaSClient.prototype.disconnect = function () {
-  this.socket.disconnect();
 };
 
 module.exports = BaaSClient;

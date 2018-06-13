@@ -21,36 +21,31 @@ if (!program.reject) {
 
 var client = new Client(config);
 
-client.once('ready', function () {
-  if (!program.hash) {
-    read({ prompt: 'Enter the password to hash and press enter: ', silent: true }, function(er, password) {
-      client.hash(password, function (err, result) {
-        if (err) {
-          console.error(err.message);
-          return process.exit(1);
-        }
-        console.log('The password hash is ' + result);
+if (!program.hash) {
+  read({ prompt: 'Enter the password to hash and press enter: ', silent: true }, function(er, password) {
+    client.hash(password, function (err, result) {
+      if (err) {
+        console.error(err.message);
+        return process.exit(1);
+      }
+      console.log('The password hash is ' + result);
+      return process.exit(0);
+    });
+  });
+} else {
+  read({ prompt: 'Enter the password to compare: ', silent: true }, function(er, password) {
+    client.compare(password, program.hash, function (err, result) {
+      if (err) {
+        console.error(err.message);
+        return process.exit(1);
+      }
+      if (result.success) {
+        console.log('The password match the hash.');
         return process.exit(0);
-      });
+      } else {
+        console.log('The password does not match the hash.');
+        return process.exit(1);
+      }
     });
-  } else {
-    read({ prompt: 'Enter the password to compare: ', silent: true }, function(er, password) {
-      client.compare(password, program.hash, function (err, result) {
-        if (err) {
-          console.error(err.message);
-          return process.exit(1);
-        }
-        if (result.success) {
-          console.log('The password match the hash.');
-          return process.exit(0);
-        } else {
-          console.log('The password does not match the hash.');
-          return process.exit(1);
-        }
-      });
-    });
-  }
-}).on('error', function (err) {
-  console.error(err.message);
-  process.exit(1);
-});
+  });
+}

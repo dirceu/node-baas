@@ -28,17 +28,13 @@
     "commander": "^2.13.0",
     "disyuntor": "^2.2.0",
     "double-ended-queue": "^2.1.0-0",
+    "grpc": "~1.12.3",
     "js-yaml": "^3.10.0",
     "lodash": "^4.17.4",
     "master-process": "^2.6.0",
     "ms": "^2.1.1",
-    "pb-stream": "~1.1.0",
-    "protobufjs": "^5.0.1",
     "randomstring": "^1.1.5",
     "read": "~1.0.7",
-    "reconnect-net": "^1.1.1",
-    "reconnect-tls": "jfromaniello/reconnect-tls#hangup-fix",
-    "server-destroy": "^1.0.1",
     "through2": "~2.0.1"
   },
   "devDependencies": {

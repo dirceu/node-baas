@@ -3,14 +3,14 @@ const bcrypt = require('bcrypt');
 const execute = module.exports = function (request) {
   const request_id = request.id;
 
-  if (request.operation === 0) {
+  if (request.operation === 'COMPARE') {
     //compare
     const success = bcrypt.compareSync(request.password, request.hash);
     return {
       request_id,
       success
     };
-  } else if (request.operation === 1) {
+  } else if (request.operation === 'HASH') {
     //hash
     const hash = bcrypt.hashSync(request.password, 10);
     return {
